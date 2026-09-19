@@ -3,7 +3,6 @@
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import type { RefObject } from "react";
 import {
-  BookMarkedIcon,
   CheckIcon,
   ChevronDownCircleIcon,
   ChevronRightCircleIcon,
@@ -14,23 +13,18 @@ import {
   DiamondPlusIcon,
   DownloadIcon,
   EditIcon,
-  ExternalLinkIcon,
   EyeIcon,
   EyeOffIcon,
   FastForwardIcon,
   FileIcon,
   Files,
-  FileTextIcon,
   FolderDownIcon,
   GlobeIcon,
   HardDrive,
-  Home,
   ImageIcon,
   KeyboardIcon,
   LayoutTemplateIcon,
   LinkIcon,
-  MessageCircleQuestionIcon,
-  MessagesSquareIcon,
   NotebookIcon,
   PanelLeftIcon,
   PowerSquareIcon,
@@ -46,11 +40,8 @@ import {
   settingDialogAtom,
   useOpenSettingsToTab,
 } from "@/components/app-config/state";
-import { FeedbackModal } from "@/components/editor/chrome/components/feedback-button";
 import { MarkdownIcon } from "@/components/editor/cell/code/icons";
-import { GitHubIcon } from "@/components/icons/github";
 import { MarimoPlusIcon } from "@/components/icons/marimo-icons";
-import { YouTubeIcon } from "@/components/icons/youtube";
 import { useImperativeModal } from "@/components/modal/ImperativeModal";
 import { PairWithAgentModal } from "@/components/editor/actions/pair-with-agent-modal";
 import { ShareStaticNotebookModal } from "@/components/static-html/share-modal";
@@ -77,7 +68,6 @@ import { useDetectedDataSources } from "@/hooks/useDataSourceDiscovery";
 import { copyToClipboard } from "@/utils/copy";
 import { Objects } from "@/utils/objects";
 import { Strings } from "@/utils/strings";
-import { newNotebookURL } from "@/utils/urls";
 import { useRunAllCells } from "../cell/useRunCells";
 import { useChromeActions, useChromeState } from "../chrome/state";
 import { isPanelHidden, PANELS } from "../chrome/types";
@@ -629,79 +619,6 @@ export function useNotebookActions({
       handle: () => setSettingsDialogOpen((open) => !open),
       redundant: true,
       additionalKeywords: ["preferences", "options", "configuration"],
-    },
-    {
-      icon: <MessageCircleQuestionIcon size={14} strokeWidth={1.5} />,
-      label: "Report an issue",
-      additionalKeywords: ["feedback", "bug", "issue", "report", "diagnostics"],
-      handle: () => openModal(<FeedbackModal onClose={closeModal} />),
-    },
-    {
-      icon: <ExternalLinkIcon size={14} strokeWidth={1.5} />,
-      label: "Resources",
-      handle: NOOP_HANDLER,
-      dropdown: [
-        {
-          icon: <BookMarkedIcon size={14} strokeWidth={1.5} />,
-          label: "Documentation",
-          handle: () => {
-            window.open(Constants.docsPage, "_blank");
-          },
-        },
-        {
-          icon: <GitHubIcon className="h-3.5 w-3.5" />,
-          label: "GitHub",
-          handle: () => {
-            window.open(Constants.githubPage, "_blank");
-          },
-        },
-        {
-          icon: <MessagesSquareIcon size={14} strokeWidth={1.5} />,
-          label: "Discord Community",
-          handle: () => {
-            window.open(Constants.discordLink, "_blank");
-          },
-        },
-        {
-          icon: <YouTubeIcon className="h-3.5 w-3.5" />,
-          label: "YouTube",
-          handle: () => {
-            window.open(Constants.youtube, "_blank");
-          },
-        },
-        {
-          icon: <FileTextIcon size={14} strokeWidth={1.5} />,
-          label: "Changelog",
-          handle: () => {
-            window.open(Constants.releasesPage, "_blank");
-          },
-        },
-      ],
-    },
-
-    {
-      divider: true,
-      icon: <Home size={14} strokeWidth={1.5} />,
-      label: "Open home",
-      // If file is in the url, then we ran `marimo edit`
-      // without a specific file
-      hidden: !location.search.includes("file"),
-      handle: () => {
-        const withoutSearch = document.baseURI.split("?")[0];
-        window.open(withoutSearch, "_blank", "noopener");
-      },
-    },
-
-    {
-      icon: <MarimoPlusIcon size={14} strokeWidth={1.5} />,
-      label: "New notebook",
-      // If file is in the url, then we ran `marimo edit`
-      // without a specific file
-      hidden: !location.search.includes("file"),
-      handle: () => {
-        const url = newNotebookURL();
-        window.open(url, "_blank");
-      },
     },
   ];
 

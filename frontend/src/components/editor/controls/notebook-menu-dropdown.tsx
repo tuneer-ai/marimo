@@ -16,7 +16,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip } from "@/components/ui/tooltip";
-import { getMarimoVersion } from "@/core/meta/globals";
 import {
   MinimalShortcut,
   renderShortcut,
@@ -156,7 +155,6 @@ export const NotebookMenuDropdown: React.FC<Props> = ({
         <DropdownMenuSeparator />
         <div className="flex-1 px-2 text-xs text-muted-foreground flex flex-col gap-1">
           <span>Locale: {locale}</span>
-          <span>Version: {getMarimoVersion()}</span>
         </div>
       </DropdownMenuContent>
     </DropdownMenu>

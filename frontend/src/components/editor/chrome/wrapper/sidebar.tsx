@@ -1,7 +1,6 @@
 /* Copyright 2026 Marimo. All rights reserved. */
 
 import { useAtom, useAtomValue } from "jotai";
-import { MessageCircleQuestionIcon } from "lucide-react";
 import type React from "react";
 import type { PropsWithChildren } from "react";
 import { useEffect, useMemo } from "react";
@@ -14,7 +13,6 @@ import {
 import { capabilitiesAtom } from "@/core/config/capabilities";
 import { aiEnabledAtom } from "@/core/config/config";
 import { cn } from "@/utils/cn";
-import { FeedbackButton } from "../components/feedback-button";
 import { panelLayoutAtom, useChromeActions, useChromeState } from "../state";
 import {
   isPanelHidden,
@@ -156,11 +154,6 @@ export const Sidebar: React.FC = () => {
           </SidebarItem>
         )}
       />
-      <FeedbackButton>
-        <SidebarItem tooltip="Send feedback!" selected={false}>
-          <MessageCircleQuestionIcon className="h-5 w-5" />
-        </SidebarItem>
-      </FeedbackButton>
       <div className="flex-1" />
       <QueuedOrRunningStack />
     </div>
