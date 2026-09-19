@@ -6,9 +6,18 @@ type PopoverContentProps = Popover.PopoverContentProps;
 
 import React, { type RefObject, useState, useSyncExternalStore } from "react";
 import { isInVscodeExtension } from "@/core/vscode/is-in-vscode";
+import { isEmbedded } from "@/theme/embed-target";
 import { useEventListener } from "@/hooks/useEventListener";
 
 const VSCODE_OUTPUT_CONTAINER_SELECTOR = "[data-vscode-output-container]";
+// Radix Portals (dropdowns, popovers, tooltips, dialogs, ...) render into
+// `document.body` by default. When embedded in a host page, our CSS is
+// scoped under `.marimo-embed-root` (see postcss.config.embed.cjs), so a
+// portal rendered straight into `document.body` would fall outside that
+// scope and render completely unstyled. Redirect such portals to render
+// inside our own mount root instead, same as the VSCode-output-container
+// special case just below.
+const EMBED_ROOT_SELECTOR = ".marimo-embed-root";
 
 // vscode has smaller viewport so we need all the max-height we can get.
 // Otherwise, we give a 30px buffer to the max-height.
@@ -78,7 +87,8 @@ export function withFullScreenAsRoot<
     container?: Element | DocumentFragment | null;
   },
 >(Component: React.ComponentType<T>) {
-  const FindClosestVscodeOutputContainer = (props: T) => {
+  const FindClosestContainer = (props: T & { selector: string }) => {
+    const { selector, ...rest } = props;
     const [closest, setClosest] = React.useState<Element | null>(null);
     const el = React.useRef<HTMLDivElement>(null);
 
@@ -87,17 +97,14 @@ export function withFullScreenAsRoot<
         return;
       }
 
-      const found = closestThroughShadowDOMs(
-        el.current,
-        VSCODE_OUTPUT_CONTAINER_SELECTOR,
-      );
+      const found = closestThroughShadowDOMs(el.current, selector);
       setClosest(found);
-    }, []);
+    }, [selector]);
 
     return (
       <>
         <div ref={el} className="contents invisible" />
-        <Component {...props} container={closest} />
+        <Component {...(rest as unknown as T)} container={closest} />
       </>
     );
   };
@@ -108,14 +115,28 @@ export function withFullScreenAsRoot<
     // If we are in the VSCode extension, we use the VSCode output container
     const vscodeOutputContainer = isInVscodeExtension();
     if (vscodeOutputContainer) {
-      return <FindClosestVscodeOutputContainer {...props} />;
+      return (
+        <FindClosestContainer
+          {...props}
+          selector={VSCODE_OUTPUT_CONTAINER_SELECTOR}
+        />
+      );
     }
 
-    if (!fullScreenElement) {
-      return <Component {...props} />;
+    if (fullScreenElement) {
+      return <Component {...props} container={fullScreenElement} />;
     }
 
-    return <Component {...props} container={fullScreenElement} />;
+    // When mounted into a host page, portal into our own mount root rather
+    // than the default `document.body`, so scoped CSS (`.marimo-embed-root`)
+    // still applies to the portaled content.
+    if (isEmbedded()) {
+      return (
+        <FindClosestContainer {...props} selector={EMBED_ROOT_SELECTOR} />
+      );
+    }
+
+    return <Component {...props} />;
   };
 
   Comp.displayName = Component.displayName;

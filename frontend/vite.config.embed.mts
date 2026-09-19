@@ -16,11 +16,21 @@
 // (which expect a `#root` element and `window.__MARIMO_MOUNT_CONFIG__`,
 // neither of which exist when embedding into a host page). A fully separate
 // build, with its own `build.lib` entry, keeps embed's exports intact.
+import { createRequire } from "node:module";
 import { defineConfig, mergeConfig } from "vite";
 import base from "./vite.config.mts";
 
+const require = createRequire(import.meta.url);
+
 export default defineConfig(
   mergeConfig(base, {
+    css: {
+      // Scope all of the embed bundle's CSS under `.marimo-embed-root`
+      // instead of using the project's normal postcss.config.cjs (which,
+      // for this build, would otherwise apply Tailwind's global resets to
+      // the whole host document). See postcss.config.embed.cjs for why.
+      postcss: require("./postcss.config.embed.cjs"),
+    },
     build: {
       // Written into the *same* dist/ dir as the main app build, without
       // wiping it -- this config must always run *after* the main build.
