@@ -72,6 +72,21 @@ import { ThemeProvider } from "./theme/ThemeProvider";
 import { reportVitals } from "./utils/vitals";
 
 let hasMounted = false;
+let activeRoot: ReturnType<typeof createRoot> | undefined;
+
+/**
+ * Unmounts the currently mounted marimo app (if any), tearing down its React
+ * tree (and, via effect cleanups, its websocket connections and global
+ * listeners) so that `mount()` can safely be called again — e.g. to embed a
+ * different notebook into the same container element.
+ */
+export function unmount(): void {
+  if (activeRoot) {
+    activeRoot.unmount();
+    activeRoot = undefined;
+  }
+  hasMounted = false;
+}
 
 /**
  * Main entry point for the marimo app.
@@ -87,6 +102,7 @@ export function mount(options: unknown, el: Element): Error | undefined {
   hasMounted = true;
 
   const root = createRoot(el);
+  activeRoot = root;
 
   try {
     // Init side-effects
@@ -394,5 +410,6 @@ function hydrateStaticModels(): void {
 export const visibleForTesting = {
   reset: () => {
     hasMounted = false;
+    activeRoot = undefined;
   },
 };

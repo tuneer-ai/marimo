@@ -170,7 +170,7 @@
     "start": "vite",
     "dev": "vite",
     "build:watch": "vite build --watch --outDir ../marimo/_static",
-    "build": "cross-env vite build",
+    "build": "cross-env vite build && cross-env vite build --config vite.config.embed.mts",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsgo",

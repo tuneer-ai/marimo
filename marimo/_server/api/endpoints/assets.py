@@ -34,6 +34,7 @@ from marimo._server.files.path_validator import PathValidator
 from marimo._server.router import APIRouter
 from marimo._session.model import SessionMode
 from marimo._templates import (
+    _get_mount_config,
     home_page_template,
     inject_script,
     json_script,
@@ -447,6 +448,158 @@ async def index(request: Request) -> Response:
         html = _inject_service_worker(html, file_key)
 
     return _html_response(request, html)
+
+
+@router.get("/api/embed/mount-config")
+async def embed_mount_config(request: Request) -> Response:
+    """
+    Returns the same mount-config JSON that is normally inlined into the
+    server-rendered notebook HTML page (see ``index`` above), but as a
+    standalone JSON response. This lets an external host page fetch a
+    notebook's mount configuration and call marimo's ``mount()`` on-demand
+    (e.g. embedding a notebook into another application's document without
+    requesting a full HTML page / iframe).
+    """
+    if not has_required_scope(request, ["read"]):
+        return Response(status_code=401, content="Unauthorized")
+
+    app_state = AppState(request)
+
+    file_key_from_query = app_state.query_params(FILE_QUERY_PARAM_KEY)
+    file_key = (
+        file_key_from_query
+        or app_state.session_manager.workspace.get_unique_file_key()
+    )
+
+    if not file_key:
+        raise HTTPException(
+            status_code=400,
+            detail="No notebook file could be resolved for this workspace.",
+        )
+
+    config_manager = app_state.config_manager_at_file(file_key)
+    app_manager = app_state.session_manager.app_manager(file_key)
+    app_config = app_manager.app.config
+    absolute_filepath = app_manager.filename
+
+    notebook_snapshot = None
+    if (
+        app_state.session_manager.sandbox_mode is SandboxMode.MULTI
+        and app_state.mode == SessionMode.EDIT
+        and app_manager.filename
+    ):
+        from marimo._convert.converters import MarimoConvert
+
+        filepath = AsyncPath(app_manager.filename)
+        if await filepath.exists():
+            try:
+                content = await filepath.read_text(encoding="utf-8")
+                notebook_snapshot = MarimoConvert.from_py(
+                    content
+                ).to_notebook_v1()
+            except Exception:
+                LOGGER.debug("Failed to pre-compute notebook snapshot")
+
+    filename = app_manager.filename
+    directory = app_state.session_manager.workspace.directory
+    lsp_workspace = _resolve_lsp_workspace(filename, directory)
+
+    if filename and directory:
+        try:
+            filename = str(Path(filename).relative_to(directory))
+        except ValueError:
+            pass
+
+    cwd = (
+        str(Path(absolute_filepath).parent) if absolute_filepath else None
+    )
+
+    mount_config_json = _get_mount_config(
+        filename=filename,
+        cwd=cwd,
+        lsp_workspace=lsp_workspace,
+        mode="read" if app_state.mode == SessionMode.RUN else "edit",
+        server_token=app_state.skew_protection_token,
+        user_config=config_manager.get_user_config(),
+        config_overrides=config_manager.get_config_overrides(),
+        app_config=app_config,
+        notebook_snapshot=notebook_snapshot,
+        runtime_config=[{"url": app_state.remote_url}]
+        if app_state.remote_url
+        else None,
+    )
+
+    return Response(content=mount_config_json, media_type="application/json")
+
+
+@router.get("/api/embed/bundle")
+async def embed_bundle(request: Request) -> Response:
+    """
+    Resolves the hashed filename(s) of the `embed` build entry (see
+    `frontend/src/embed-entry.ts` and `frontend/vite.config.embed.mts`), by
+    reading that build's own Vite manifest. This lets a host page
+    dynamically `import()` marimo's mount/unmount API without needing to
+    know/guess the content hash baked into the built filename.
+
+    The embed entry is built as a fully separate Vite "library" build (see
+    `vite.config.embed.mts` for why), so it has its own manifest file
+    (`vite-manifest-embed.json`), distinct from the main app build's
+    `vite-manifest.json`.
+    """
+    if not has_required_scope(request, ["read"]):
+        return Response(status_code=401, content="Unauthorized")
+
+    manifest_path = root / "vite-manifest-embed.json"
+    if not manifest_path.exists():
+        # Fallback locations used by different Vite versions/configs.
+        manifest_path = root / ".vite" / "manifest-embed.json"
+        if not manifest_path.exists():
+            manifest_path = root / "assets" / "vite-manifest-embed.json"
+
+    if not manifest_path.exists():
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Embed build manifest not found; the `embed` bundle cannot "
+                "be resolved. Make sure the frontend was built with "
+                "`vite build --config vite.config.embed.mts` (see "
+                "package.json's `build` script)."
+            ),
+        )
+
+    import json as _json
+
+    manifest = _json.loads(manifest_path.read_text())
+    entry = manifest.get("src/embed-entry.ts")
+    if entry is None:
+        raise HTTPException(
+            status_code=500,
+            detail="`embed` entry not found in the embed build manifest.",
+        )
+
+    js_file = entry.get("file")
+    css_files = list(entry.get("css") or [])
+
+    # Vite's library build emits the CSS bundle for `embed-entry.ts`'s
+    # (transitive) stylesheet imports as its own manifest entry, keyed by
+    # the stable virtual name `style.css` rather than being attached to the
+    # `src/embed-entry.ts` entry's own `css` list. Include it so the
+    # embedded notebook gets marimo's base styling even though it's loaded
+    # standalone (i.e. without ever loading the full `index.html` page).
+    style_entry = manifest.get("style.css") or {}
+    style_file = style_entry.get("file")
+    if style_file and style_file not in css_files:
+        css_files.append(style_file)
+
+    return Response(
+        content=_json.dumps(
+            {
+                "js": f"/assets/{Path(js_file).name}" if js_file else None,
+                "css": [f"/assets/{Path(css).name}" for css in css_files],
+            }
+        ),
+        media_type="application/json",
+    )
 
 
 DEFAULT_NOTEBOOK_NAME = "__marimo_notebook__.py"
